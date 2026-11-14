@@ -142,6 +142,9 @@ const DESC_SOLO = {
  'Descorrelación':'Entra en el Nasdaq cuando el Nasdaq y el dólar se mueven fuerte para el mismo lado, algo poco común que suele continuar.',
  'Expl Nasdaq':'Explosión del Nasdaq en los datos de inflación y empleo de EE. UU.',
  'ORB':'Ruptura del rango de apertura de Nueva York en el Nasdaq, a favor de la tendencia diaria.'};
+const PROY = {
+ axi:{t:'Portafolio Peldaño · Axi Select',d:'Los ocho robots del Peldaño con la mitad del riesgo normal, en su cuenta Axi. Axi Select mide su "Edge Score" (habilidad, riesgo y consistencia): con al menos 20 operaciones cerradas y un Edge Score de 50 entra a la etapa Seed ($5.000) y puede subir hasta $1.000.000 (Pro M), recibiendo del 40% al 80% de las ganancias del capital asignado. La pérdida máxima del programa es 7%: por eso va con la mitad del riesgo.',cap:'en su cuenta Axi de'},
+ darwinex:{t:'Portafolio Peldaño · Darwinex Zero',d:'Los ocho robots del Peldaño con la mitad del riesgo normal, en una cuenta virtual de Darwinex Zero. Darwinex califica la estrategia por ganancia frente a caída y por constancia, mes a mes: con una calificación de 75 o más entra a las asignaciones mensuales de capital (DarwinIA) y cobra el 15% de lo que gane ese capital. Es un camino de meses, no de semanas: aquí pesa más no caer que ganar rápido.',cap:'en la cuenta virtual de'}};
 const PORT_INFO = {
  'Ancla':{t:'Portafolio Brote · Ancla',d:'Dos robots de noticias que casi nunca operan el mismo día: EUR/USD en la mañana y Oceanía (AUD y NZD) en la noche. El de menor riesgo de MASFIN. Va en cuenta cent, para que el robot pueda manejar bien el riesgo con poco capital.',estado:'Validado en el laboratorio'},
  'Núcleo':{t:'Portafolio Núcleo',d:'El Ancla más el ORB del Nasdaq. Tres robots que ganaron en 2024, 2025 y 2026 y que casi no se mueven juntos. Es la base de MASFIN.',estado:'Validado en el laboratorio'},
@@ -152,7 +155,7 @@ const PORT_INFO = {
 const PREG = [
  {k:'datos',tipo:'datos',t:'Primero, ¿con quién hablamos?'},
  {k:'capital',tipo:'num',t:'¿Cuánto capital tiene hoy para operar?',s:'En dólares. Si todavía no tiene cuenta, ponga lo que podría depositar.'},
- {k:'meta',t:'¿Qué quiere lograr?',o:[['propia','Hacer crecer mi propia cuenta','Cuenta real en Exness, RoboForex u otro bróker'],['cfd','Pasar una prueba de fondeo CFD','FTMO, FundingPips, The5ers, etc. (MetaTrader 5)'],['futuros','Pasar una prueba de fondeo de futuros','Lucid, Topstep, Apex (NinjaTrader)'],['nose','No sé todavía','Quiero que me orienten']]},
+ {k:'meta',t:'¿Qué quiere lograr?',o:[['propia','Hacer crecer mi propia cuenta','Cuenta real en Exness, RoboForex u otro bróker'],['cfd','Pasar una prueba de fondeo CFD','FTMO, FundingPips, The5ers, etc. (MetaTrader 5)'],['futuros','Pasar una prueba de fondeo de futuros','Lucid, Topstep, Apex (NinjaTrader)'],['axi','Que Axi me asigne capital (Axi Select)','Opero mi cuenta Axi y, si lo hago bien, Axi me suma capital propio de ellos'],['darwinex','Que inversionistas me asignen capital (Darwinex Zero)','Cuenta virtual en Darwinex; si la calificación es buena, me asignan capital'],['nose','No sé todavía','Quiero que me orienten']]},
  {k:'activo',t:'¿Qué mercado le gusta o conoce más?',o:[['oro','Oro (XAU/USD)',''],['nasdaq','Nasdaq',''],['divisas','Divisas (EUR/USD, USD/JPY…)',''],['igual','Me da igual','Que gane el que tenga mejores números']]},
  {k:'rachas',t:'¿Cómo lleva las rachas de pérdidas?',s:'Todos los robots tienen días y semanas en rojo. Esto nos dice cuál le va a dejar dormir tranquilo.',o:[['1','Me desespero si pierdo varios días seguidos','Prefiero algo más parejo aunque gane menos'],['2','Aguanto si el mes sale bien',''],['3','Aguanto meses si el año sale bien','Busco el mayor crecimiento']]},
  {k:'plataforma',t:'¿Qué plataforma usa?',o:[['mt5','MetaTrader 5',''],['mt4','MetaTrader 4',''],['ninja','NinjaTrader',''],['ninguna','Todavía ninguna','']]},
@@ -186,7 +189,7 @@ function render(){
 function elegir(){
   const c=R.capital, r=+R.rachas; let p, nota=[];
   if(R.meta==='futuros') p='Vértice';
-  else if(R.meta==='cfd') p='Peldaño';
+  else if(R.meta==='cfd' || R.meta==='axi' || R.meta==='darwinex') p='Peldaño';
   else { if(c<700) p='Ancla'; else if(c<3000) p='Núcleo'; else if(c<11000) p=(r===1?'Núcleo':'Equilibrio'); else p=(r===3?'Motor':'Equilibrio'); }
   // robot solo
   let s;
@@ -199,7 +202,11 @@ function elegir(){
   if(R.plataforma==='mt4') nota.push('Los robots de MASFIN son para MetaTrader 5. Abrir una cuenta MT5 en el mismo bróker es gratis.');
   if(R.plataforma==='ninja' && R.meta!=='futuros') nota.push('Para cuenta propia y fondeo CFD los robots corren en MetaTrader 5; NinjaTrader se usa para futuros.');
   if(R.exp==='nuevo') nota.push('Como está empezando: primero 2 semanas en cuenta demo con el robot montado tal cual, para que lo vea operar antes de poner plata.');
-  return {p,s,nota};
+  const proy = (R.meta==='axi'||R.meta==='darwinex') ? R.meta : null;
+  if(proy==='axi' && c<500) nota.push('Axi Select pide un depósito mínimo de $500 en su cuenta Axi. Mientras junta ese capital, monte el portafolio en demo.');
+  if(proy && c<3000) nota.push('Con menos de unos $3.000, los robots de oro y Nasdaq del portafolio pueden saltarse operaciones por el lote mínimo. Funciona, pero rinde más desde $3.000.');
+  if(proy) nota.push('Antes de montarlo, confirme con '+(proy==='axi'?'Axi':'Darwinex')+' que el programa permite robots (asesores expertos): las condiciones cambian y no están claras en su página.');
+  return {p,s,nota,proy};
 }
 
 function barras(vals,labels,escala){ // escala: multiplica vals
@@ -213,7 +220,7 @@ function barras(vals,labels,escala){ // escala: multiplica vals
 }
 function intentos(p){p=p/100; return p>=1?1:Math.ceil(Math.log(.05)/Math.log(1-p));}
 
-function bloquePort(p,c,demo){
+function bloquePort(p,c,demo,proy){
   if(p==='Vértice'){
     const v=D.vertice, n=intentos(v.r.pasa), res=n*80.5;
     return `<div class="card res prin"><span class="tag">Portafolio recomendado</span><h2>Vértice Futuros MASFIN</h2><span class="tag val">En validación en demo</span>
@@ -222,8 +229,8 @@ function bloquePort(p,c,demo){
     <h3>Cómo le habría ido mes a mes en la cuenta de $50.000</h3><div class="graf">${barras(v.r.mes,v.meses,1)}</div>
     <p class="note">Escenario realista: cada robot ganando solo la mitad de lo que ganó en las pruebas. Si repite el pasado, pasa el ${v.h.pasa}%. Reserva = ${n} exámenes de $80,50 para tener 95% de probabilidad de aprobar al menos uno; se compra uno a la vez.</p></div>`;
   }
-  const o=D.port[p], I=PORT_INFO[p], base=(p==='Peldaño')?(c>0?c:10000):c, esc=base/100;
-  const capTxt = p==='Peldaño' ? `en una cuenta de fondeo de ${usd(base)}` : `con ${usd(base)}`;
+  const o=D.port[p], I=proy?Object.assign({},PORT_INFO[p],PROY[proy]):PORT_INFO[p], base=(p==='Peldaño')?(c>0?c:10000):c, esc=base/100;
+  const capTxt = proy ? `${PROY[proy].cap} ${usd(base)}` : (p==='Peldaño' ? `en una cuenta de fondeo de ${usd(base)}` : `con ${usd(base)}`);
   return `<div class="card res prin"><span class="tag">Portafolio recomendado</span><h2>${I.t}</h2><span class="tag val">${I.estado}</span>
   <p>${I.d}</p><div class="chips">${o.cols.map(x=>`<span class="chip">${NOM[x]}</span>`).join('')}</div>
   <div class="kpis"><div class="kpi"><span>Ganancia al año (realista)</span><b>${pct(o.r.anual)}</b></div><div class="kpi"><span>${capTxt}</span><b>${usd(o.r.anual*esc)}</b></div><div class="kpi"><span>Peor caída</span><b>${usd(-o.r.dd*esc)}</b></div><div class="kpi"><span>Meses verdes</span><b>${o.r.mpos}%</b></div><div class="kpi"><span>Días con operación al mes</span><b>${String(o.act).replace('.',',')}</b></div></div>
@@ -238,7 +245,9 @@ function bloqueSolo(s,c){
   <div class="graf">${barras(o.r.mes,o.meses,esc)}</div>
   <p class="note">Un robot solo gana menos y va más por rachas que un portafolio: por eso recomendamos el portafolio. Si repite el pasado: ${pct(o.h.anual)} al año.</p></div>`;
 }
-function pasos(p){
+function pasos(p,proy){
+  if(proy==='axi') return ['Abrir una cuenta Axi <b>Pro</b> en MetaTrader 5 con el enlace de MASFIN y depositar al menos $500.','2 semanas en demo con el portafolio montado; luego en la cuenta real con la mitad del riesgo normal (la pérdida máxima de Axi Select es 7%).','Cerrar al menos 20 operaciones y revisar su Edge Score en el panel de Axi: con 50 entra a Seed ($5.000), luego sube de etapa.'];
+  if(proy==='darwinex') return ['Suscribirse a Darwinex Zero y crear la cuenta virtual en MetaTrader 5 (tiene costo mensual; revise el precio en su página).','Montar el portafolio con la mitad del riesgo normal y dejarlo correr meses sin tocarlo: la calificación castiga las caídas y los cambios.','Cuando la calificación pase de 75, entra a las asignaciones mensuales; cobra el 15% de lo que gane el capital asignado.'];
   const L={
    'Ancla':['Abrir una cuenta Exness Standard Cent con el enlace de MASFIN (vea el Paso 2).','2 semanas en demo con el Portafolio Brote montado.','Reto de ahorro hasta $500 y montarlo en real.'],
    'Núcleo':['Abrir la cuenta con el enlace de MASFIN del tipo exacto del Paso 2 (con menos de $1.500: una cent y una de spread bajo en el mismo bróker).','2 semanas en demo con el portafolio montado.','Pasar a real con la mitad del riesgo los primeros 20 trades de cada robot.'],
@@ -249,7 +258,7 @@ function pasos(p){
   return L[p];
 }
 function resumen(x){
-  const n=p=>p==='Vértice'?'Vértice Futuros':(PORT_INFO[p]||{t:p}).t;
+  const n=p=>p==='Vértice'?'Vértice Futuros':(x.proy?PROY[x.proy].t:(PORT_INFO[p]||{t:p}).t);
   const txt=PREG.slice(1).map(q=>{const v=q.k==='capital'?usd(R.capital):((q.o||[]).find(o=>o[0]===R[q.k])||['',''])[1]; return `• ${q.t} ${v}`}).join('\n');
   const cta=(document.querySelector('#cta')||{}).value||'', brk=(document.querySelector('#brk')||{}).value||'';
   const ctaTxt = cta.trim() ? `\n\nMi cuenta: ${cta.trim()} · ${brk}` : `\n\nCuenta: todavía no la he abierto (tipo que voy a abrir: ${brk})`;
@@ -271,8 +280,23 @@ const NASDAQ = ['ORB','Expl Nasdaq','Rompe Techo','Descorrelación'];
 function tablaCuentas(lista){
   return `<div class="tbl" style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Bróker</th><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Tipo de cuenta</th><th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)">Por qué</th></tr></thead><tbody>${lista.map(([b,t,w])=>`<tr><td style="padding:6px 8px;border-bottom:1px solid var(--line)">${b}</td><td style="padding:6px 8px;border-bottom:1px solid var(--line)"><b>${t}</b></td><td style="padding:6px 8px;border-bottom:1px solid var(--line)">${w}</td></tr>`).join('')}</tbody></table></div>`;
 }
-function pasoCuenta(p){
+function pasoCuenta(p,proy){
   const x=window._x||{};
+  if(proy==='axi'){
+    return `<div class="card prin"><span class="tag">Paso 2</span><h2>Abra su cuenta Axi con MASFIN</h2><p>Axi Select funciona sobre una cuenta <b>real</b> de Axi en <b>MetaTrader 5</b>, con depósito mínimo de $500. Este es el tipo de cuenta exacto:</p>${tablaCuentas([['Axi','Pro','Spread desde 0,0 + comisión. La que necesita el portafolio. No abra la cuenta Standard: su spread se come la ventaja de las noticias.']])}
+    <div class="nav" style="justify-content:flex-start"><a class="btn sec" target="_blank" rel="noopener" href="${IB.axi}">Abrir cuenta Axi Pro</a></div>
+    <p class="note"><b>Importante:</b> la licencia del robot solo se activa en cuentas abiertas con el enlace de MASFIN. Si ya tiene cuenta Axi abierta por otro lado, abra una nueva con este enlace.</p>
+    <div class="dos"><label class="f">Número de cuenta MT5<input type="text" id="cta" inputmode="numeric" placeholder="Si ya la tiene"></label>
+    <label class="f">Bróker y tipo de cuenta<select id="brk" style="font:inherit;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)"><option>Axi · Pro (Axi Select)</option><option>Otra (dígame cuál)</option></select></label></div>
+    <p class="note">¿Todavía no la tiene? No pasa nada: envíe su resultado igual y le acompañamos a abrirla.</p></div>`;
+  }
+  if(proy==='darwinex'){
+    return `<div class="card prin"><span class="tag">Paso 2</span><h2>Su cuenta en Darwinex Zero</h2><p>Darwinex Zero le da una cuenta <b>virtual</b> de MetaTrader 5 por una suscripción mensual; no hace falta depositar capital. No usa los enlaces de bróker de MASFIN: cuando tenga la cuenta, escriba abajo su número y le activamos la licencia de fondeo.</p>
+    <div class="nav" style="justify-content:flex-start"><a class="btn sec" target="_blank" rel="noopener" href="https://www.darwinexzero.com">Ir a Darwinex Zero</a></div>
+    <div class="dos"><label class="f">Número de cuenta MT5<input type="text" id="cta" inputmode="numeric" placeholder="Si ya la tiene"></label>
+    <label class="f">Programa<select id="brk" style="font:inherit;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)"><option>Darwinex Zero (cuenta virtual MT5)</option></select></label></div>
+    <p class="note">¿Todavía no la tiene? Envíe su resultado igual y le acompañamos.</p></div>`;
+  }
   const dosCuentas = (p==='Núcleo' && R.capital<1500);
   const cent = (p==='Ancla') || dosCuentas;
   let txt, botones='', opciones, tabla='';
@@ -307,14 +331,14 @@ function resultado(){
   const wa = WA_NUMERO ? `<a class="btn wa" id="wa" target="_blank" rel="noopener" href="https://wa.me/${WA_NUMERO}">Enviar mi resultado por WhatsApp</a>` : '';
   return `<div class="card"><span class="paso">Su diagnóstico</span><h2>${esc(R.nombre)}, esto es lo que se adapta a usted</h2>
   <p class="note">Capital: ${usd(c)} · Meta: ${PREG[2].o.find(o=>o[0]===R.meta)[1]} · Mercado: ${PREG[3].o.find(o=>o[0]===R.activo)[1]}</p></div>
-  ${bloquePort(x.p,c,demo)}
+  ${bloquePort(x.p,c,demo,x.proy)}
   ${bloqueSolo(x.s,c)}
   ${horario(x)}
-  <div class="dos"><div class="card"><h3>Sus próximos pasos</h3><ul class="pasos">${pasos(x.p).map(t=>`<li>${t}</li>`).join('')}</ul></div>
+  <div class="dos"><div class="card"><h3>Sus próximos pasos</h3><ul class="pasos">${pasos(x.p,x.proy).map(t=>`<li>${t}</li>`).join('')}</ul></div>
   ${x.nota.length?`<div class="card"><h3>Para tener en cuenta</h3><ul class="pasos">${x.nota.map(t=>`<li>${t}</li>`).join('')}</ul></div>`:''}</div>
   <div class="card"><span class="tag">Calcule su riesgo</span><h3>Vea su caída máxima y su ganancia mes a mes con su capital</h3><p>Abra la Calculadora de Riesgo MASFIN ya cargada con su recomendación y ${usd(c>0?c:1000)}. Allí puede mover el riesgo y ver la peor caída probable, cuánto le cabe y cómo le habría ido mes a mes.</p>
   <div class="nav" style="justify-content:flex-start"><a class="btn" target="_blank" rel="noopener" href="${calcLink('p',x.p,c)}">Calcular mi portafolio</a><a class="btn sec" target="_blank" rel="noopener" href="${calcLink('e',x.s,c)}">Calcular el robot solo</a></div></div>
-  ${pasoCuenta(x.p)}
+  ${pasoCuenta(x.p,x.proy)}
   <div class="card"><span class="tag">Paso 3</span><h3>Envíenos su resultado</h3><p>Le llega directo a Master Valencia por WhatsApp. Con su número de cuenta le preparamos el robot con su licencia personal.</p><div class="nav" style="justify-content:flex-start">${wa}<button class="btn sec" id="copiar">Copiar mi resultado</button><button class="btn sec" id="otra">Hacer el diagnóstico de nuevo</button></div><p class="note" id="copiado"></p>
   <p class="aviso">Resultados de pruebas sobre datos de 2024 a 2026, no garantizan resultados futuros. "Realista" descuenta la mitad de la ganancia de cada robot. Operar con apalancamiento puede hacer perder el capital. Esto es información educativa, no una asesoría de inversión personalizada.</p></div>`;
 }
