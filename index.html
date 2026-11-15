@@ -210,6 +210,7 @@ function elegir(){
   else if(pf==='bajo'){ p = c<700 ? 'Ancla' : 'Núcleo'; }
   else { if(c<700) p='Ancla'; else if(c<3000) p='Núcleo'; else p='Constancia'; }
   if(pf==='alto' && p==='Voltaje Capo') nota.push('Alto riesgo a conciencia: cada robot arriesga 2% y en un día de noticias pueden estar abiertos varios a la vez (hasta 10% si todos tocaran stop). Ponga solo plata que pueda perder. Si lo que busca es el mayor crecimiento posible, pregúntenos por Constancia con riesgo doble.');
+  if(p==='Voltaje Capo') nota.push('<b>Tenga en cuenta: Voltaje Capo opera solo 2 o 3 días al mes</b>, los días de empleo (NFP) e inflación (IPC) de EE. UU. El resto del mes la cuenta se queda quieta, y es normal. Acierta mucho, pero por operar tan poco crece menos que Constancia; su ventaja es la precisión, no la cantidad de operaciones.');
   // robot solo
   let s;
   if(R.meta==='futuros') s='Descorrelación';
