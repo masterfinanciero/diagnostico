@@ -59,6 +59,14 @@ ul.pasos{margin:0;padding-left:20px;display:grid;gap:6px}
 .dos{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
 .aviso{font-size:12.5px;color:var(--mute);border-top:1px solid var(--line);padding-top:12px}
 .alt{border-left:4px solid var(--acc2)} .prin{border-left:4px solid var(--acc)}
+.rg{width:100%;accent-color:var(--acc);margin:6px 0}
+.rgval{font-family:var(--fm);font-size:28px}
+.warn{background:var(--soft2);border-radius:10px;padding:10px 12px;font-size:13.5px}
+.warn.bad{color:var(--bad)}
+.faq details{border-bottom:1px solid var(--line);padding:10px 0}
+.faq summary{cursor:pointer;font-weight:600;list-style-position:inside}
+.faq details p,.faq details ul{margin:8px 0 0;font-size:14px}
+.faq h4{margin:16px 0 4px;font-family:var(--fm);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
 footer{font-size:12.5px;color:var(--mute);text-align:center;padding-bottom:30px}
 </style>
 
@@ -448,6 +456,79 @@ function pasoCuenta(p,proy){
   <label class="f">${p==='Peldaño'?'Firma':'Bróker y tipo de cuenta'}<select id="brk" style="font:inherit;padding:11px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)">${opciones.map(o=>`<option>${o}</option>`).join('')}</select></label></div>
   <p class="note">¿Todavía no la tiene? No pasa nada: envíe su resultado igual y le acompañamos a abrirla.</p></div>`;
 }
+
+// ---------- Juegue con el riesgo ----------
+const RIESGO_BASE={'Expl EUR/USD':.25,'Expl USD/JPY':.25,'Expl Oro':.25,'Expl Nasdaq':.25,'Expl Oceanía':.15,'ORB':.5,'Radar Rezago':.2,'Falso 9 Jornada':.25,'Descorrelación':.25,'Kairós':1,'Rebote NFP':1,'Rompe Techo':.5,'Expl EUR/USD AP':2,'Expl USD/JPY AP':2,'Expl Oro AP':2,'Expl Nasdaq AP':2,'Rebote NFP AP':2};
+const PORT_MULT={'Peldaño':.5,'Peldaño sin noticias':.5,'Constancia Turbo':2};
+function riesgoCard(x,c){
+  const p=x.p; if(p==='Vértice'||!D.port[p]) return '';
+  const rec=(R.meta==='cfd'&&window._riesgoFondeo)?window._riesgoFondeo.f:1;
+  window._rg={p,c:c>0?c:10000,rec};
+  return `<div class="card" id="rgcard"><span class="tag">Juegue con el riesgo</span><h2>¿Y si quiere arriesgar más o menos?</h2>
+  <p>Le recomendamos el riesgo marcado como <b>recomendado</b>. Mueva la barra para ver qué pasa con la ganancia y con la caída si lo sube o lo baja. <b>Todo sube y baja junto:</b> el doble de riesgo es el doble de ganancia, pero también el doble de caída.</p>
+  <label class="f">Riesgo frente al recomendado<input class="rg" id="rg" type="range" min="0.25" max="3" step="0.25" value="${rec}" aria-label="Multiplicador de riesgo"></label>
+  <div id="rgout"></div></div>`;
+}
+function rgPintar(){
+  const g=window._rg; if(!g) return; const el=$('#rg'); if(!el) return;
+  const m=+el.value, o=D.port[g.p].r, k=m/g.rec, cols=D.port[g.p].cols, pm=PORT_MULT[g.p]||1;
+  const dd=o.dd*m, an=o.anual*m, rec=dd/(100-Math.min(dd,99))*100, dec1=v=>String(Math.round(v*10)/10).replace('.',',');
+  const lim={5:5,10:10,20:20,30:99}[R.p_caida];
+  let av=[];
+  if(Math.abs(m-g.rec)<.01) av.push(['','<b>Este es el riesgo recomendado</b> para su caso.']);
+  if(m<g.rec) av.push(['','Con menos riesgo gana menos, pero las caídas son más cortas y se duermen mejor. Buena opción para los primeros 20 trades o si está empezando.']);
+  if(m>g.rec && m<2) av.push(['','Más riesgo que el recomendado: más ganancia, y las caídas crecen en la misma proporción.']);
+  if(m>=2) av.push(['bad',`<b>Alto riesgo.</b> Una racha normal de pérdidas puede bajar la cuenta cerca de ${dec1(dd)}%. Ponga solo dinero que pueda perder.`]);
+  if(m>=3) av.push(['bad','<b>Riesgo muy alto:</b> en vivo las pérdidas se encadenan y la caída real suele ser mayor que la de esta cuenta.']);
+  if(lim && lim<99 && dd>lim) av.push(['bad',`Pasa su regla personal de pérdida máxima (${lim}%).`]);
+  if(R.meta==='cfd'&&window._riesgoFondeo){ const f=window._riesgoFondeo; if(Math.abs(o.peordia)*m>f.L*.5||dd>f.T*.5) av.push(['bad',`Con este riesgo su peor día (−${dec1(Math.abs(o.peordia)*m)}%) o su caída (−${dec1(dd)}%) pasa la mitad de lo que permite la firma (diaria ${f.L}%, total ${f.T}%). Ahí es fácil quemar la cuenta.`]); }
+  const filas=cols.map(cn=>`<tr><td>${NOM[cn]||cn}</td><td style="text-align:right">${String(Math.round((RIESGO_BASE[cn]||0)*pm*m*1000)/1000).replace('.',',')}%${cn==='Falso 9 Jornada'?' en cada una de sus 6 temporalidades':''}</td></tr>`).join('');
+  $('#rgout').innerHTML=`<p><span class="rgval">x${String(m).replace('.',',')}</span> <span class="note">${Math.abs(m-g.rec)<.01?'recomendado':(m<g.rec?'menos que el recomendado':'más que el recomendado')}</span></p>
+  <div class="kpis"><div class="kpi"><span>Ganancia al año (realista)</span><b>${pct(Math.round(an*10)/10)}</b><small style="color:var(--mute)">${usd(an/100*g.c)}</small></div>
+  <div class="kpi"><span>Caída máxima</span><b>−${dec1(dd)}%</b><small style="color:var(--mute)">${usd(-dd/100*g.c)}</small></div>
+  <div class="kpi"><span>Peor mes</span><b>${pct(Math.round(o.peor*m*10)/10)}</b></div>
+  <div class="kpi"><span>Peor día</span><b>${pct(Math.round(o.peordia*m*10)/10)}</b></div></div>
+  <p class="note" style="margin-top:10px">Para recuperar una caída de ${dec1(dd)}% la cuenta necesita ganar ${dec1(rec)}%. Por eso las caídas grandes cuestan tanto.</p>
+  <div style="display:grid;gap:8px">${av.map(([c,tx])=>`<div class="warn${c?' '+c:''}">${tx}</div>`).join('')}</div>
+  <h3>Riesgo por operación de cada robot</h3><div class="tbl"><table style="width:100%;font-size:13.5px"><tbody>${filas}</tbody></table></div>
+  <p class="note">${['Constancia','Constancia Turbo'].includes(g.p)?'En el Constancia Turbo Unificado se elige con el <b>Perfil</b> (Normal x1 o Turbo x2); para otro nivel, pídanos el archivo con su riesgo.':['Pulso Noticias','Trazo Técnico'].includes(g.p)?'En el asesor unificado esto se pone en <b>Ajuste del riesgo</b> (el número de la barra: 1 = recomendado) y en el <b>Perfil</b> (Turbo lo duplica).':'Cada robot trae su riesgo en su archivo de configuración (.set). Si quiere otro nivel, pídanos los archivos con su riesgo.'} Cifras del escenario realista 2024–2026; no garantizan resultados futuros.</p>`;
+}
+document.addEventListener('input',e=>{ if(e.target&&e.target.id==='rg') rgPintar(); });
+
+// ---------- Preguntas frecuentes ----------
+function faqCard(x){
+  const p=x.p, uni={'Constancia':'Constancia Turbo Unificado','Constancia Turbo':'Constancia Turbo Unificado','Pulso Noticias':'Pulso Noticias Unificado','Trazo Técnico':'Trazo Técnico Unificado'}[p];
+  const fut=p==='Vértice', cfd=R.meta==='cfd', cols=(D.port[p]||{}).cols||[], diario=cols.some(c=>['ORB','Radar Rezago','Falso 9 Jornada','Descorrelación','Rompe Techo'].includes(c));
+  const Q=(q,a)=>`<details><summary>${q}</summary>${a}</details>`;
+  const plat=fut?'NinjaTrader':'MetaTrader 5';
+  let h=`<div class="card faq"><span class="tag">Preguntas frecuentes</span><h2>Lo que más nos preguntan</h2>`;
+  h+=`<h4>Uso diario</h4>`;
+  h+=Q('¿Lo dejo prendido todo el día o solo a ciertas horas?', diario||fut?`<p>Todo el día, de lunes a viernes. Los robots operan a horas distintas (vea la tabla de horario de arriba). Si lo apaga, se pierde operaciones y puede dejar una operación abierta sin quién la cuide.</p>`:`<p>Solo hace falta prendido los días y horas de las noticias de la tabla de horario de arriba, unos 30 minutos antes. Lo más cómodo es dejarlo prendido siempre en un VPS.</p>`);
+  h+=Q('¿Necesito un VPS?','<p>Es lo más recomendable: un computador en la nube que no se apaga, de unos $10 a $20 al mes. Si usa su propio computador, debe quedar prendido, con internet y sin suspenderse (Configuración > Sistema > Inicio/apagado y suspensión > Suspender: Nunca).</p>');
+  h+=Q('¿Tengo que estar mirándolo?',`<p>No. Revíselo una vez al día: ${fut?'la estrategia habilitada en NinjaTrader':'el botón <b>Trading algorítmico</b> en verde'} y el panel del gráfico, que muestra el estado de cada robot.</p>`);
+  h+=Q('¿Por qué hay días o semanas sin operaciones?','<p>Es normal. Cada robot espera su condición (una noticia, una ruptura, un rezago). Hay semanas movidas y semanas tranquilas; se juzga por meses, no por días.</p>');
+  h+=`<h4>Instalación</h4>`;
+  h+=Q('¿Qué cuenta debo abrir?', fut?'<p>Una cuenta de fondeo de futuros (Lucid Flex 50K es con la que se calibró) y NinjaTrader 8.</p>':`<p>${p==='Ancla'?'Exness Standard Cent':'Exness <b>Raw Spread</b> o Pro, o RoboForex ECN'}, en MetaTrader 5 y <b>con el enlace de MASFIN</b>. No sirven RoboForex Pro o ProCent ni Axi Standard: su spread se come la ventaja. La licencia solo se activa en cuentas abiertas con el enlace de MASFIN.</p>`);
+  h+=Q('¿Cómo lo instalo?', fut?'<p>En NinjaTrader: Herramientas > Importar > NinjaScript, elija el archivo que le enviamos y aplique la estrategia al gráfico que le indicamos. Le acompañamos en la primera instalación.</p>':
+   `<ol><li>MT5: <b>Archivo > Abrir carpeta de datos > MQL5 > Experts</b>: pegue el archivo .ex5. Cierre y abra MT5.</li><li>${uni?`Abra un gráfico M1 (por ejemplo XAUUSD) y arrastre <b>${uni}</b>. Un solo gráfico: el asesor abre solo los demás.`:'Abra un gráfico por robot, con el activo y la temporalidad que le indicamos, y arrastre cada robot a su gráfico.'}</li><li>Pestaña <b>Común</b>: marque <b>Permitir Trading Algorítmico</b>.</li><li>Pestaña <b>Parámetros de entrada > Cargar</b>: elija su .set y pegue su clave en <b>Clave de licencia MASFIN</b>. Aceptar.</li><li>Botón <b>Trading algorítmico</b> en verde.</li></ol>`);
+  h+=Q('¿Cómo sé que quedó bien?','<p>En la pestaña <b>Expertos</b> (abajo) debe decir "Licencia MASFIN … cuenta [su número]", y el panel del gráfico muestra el estado de cada robot. Si sale "CLAVE NO VALIDA" o "no encuentro el símbolo", escríbanos.</p>');
+  h+=Q('¿Puedo cambiar los parámetros?','<p>Las reglas no: son las que se validaron. Lo que sí puede ajustar es el riesgo (vea "Juegue con el riesgo" arriba) y el nombre de un símbolo si en su bróker se llama distinto.</p>');
+  h+=`<h4>Riesgo y resultados</h4>`;
+  h+=Q('¿Cuánto puede ganar y cuánto puede perder?','<p>Las cifras de este diagnóstico son del escenario realista: cada robot ganando solo la mitad de lo que ganó en las pruebas de 2024 a 2026. La caída máxima es lo más que bajó la cuenta desde su punto más alto. Son pruebas, no promesas: ponga solo dinero que pueda perder.</p>');
+  if(uni) h+=Q('¿Qué es el Perfil Turbo y la regla Escudo?','<p>Turbo duplica el riesgo de todos los robots. El Escudo cuida el capital: si el balance cae 10% desde su máximo, el asesor vuelve solo al riesgo normal y le avisa; cuando la cuenta recupera su máximo, vuelve al Turbo.</p>');
+  h+=Q('¿Puedo cerrar una operación a mano?','<p>No lo haga. Cada robot maneja su salida (stop, agregados, trailing, cierre por hora). Si cierra a mano, cambia el resultado y el robot pierde el control de esa idea.</p>');
+  h+=Q('¿Puedo retirar ganancias?', cfd||fut?'<p>Sí, según las reglas de retiro de su firma. Retire sin operaciones abiertas.</p>':`<p>Sí. Retire sin operaciones abiertas.${uni?' El asesor reconoce solo los retiros y corrige el máximo del Escudo, para que un retiro no se tome como pérdida.':''}</p>`);
+  h+=Q('¿Puedo poner otros robots en la misma cuenta?','<p>No. Use la cuenta solo para este portafolio, para que los riesgos y los resultados no se crucen. Tampoco ponga el mismo robot dos veces.</p>');
+  if(!cfd&&!fut) h+=Q('¿Sirve para cuentas de fondeo?','<p>Para fondeo hay portafolios armados con las reglas de las firmas: Peldaño para CFD y Vértice para futuros. Haga de nuevo el diagnóstico eligiendo esa meta.</p>');
+  h+=`<h4>Problemas comunes</h4>`;
+  h+=Q('Se apagó el computador o se fue la luz con una operación abierta','<p>Prenda la plataforma lo antes posible: los robots retoman solos las operaciones abiertas. La mayoría tienen su stop en el bróker, pero algunos controlan la salida desde el asesor; por eso es mejor un VPS.</p>');
+  h+=Q('Dice "CLAVE NO VALIDA" o "FALTA LA CLAVE"','<p>La clave es personal: solo funciona en el número de cuenta para el que se generó. Revise que la pegó completa (18 caracteres) y que está en la cuenta correcta. Si cambió de cuenta, pida una clave nueva.</p>');
+  h+=Q('Dice "CLAVE DE PRUEBA: solo funciona en cuentas DEMO"','<p>Su clave es de demo. Cuando pase a real, pida a MASFIN la clave para su cuenta real.</p>');
+  h+=Q('Dice "No encuentro el símbolo"','<p>Su bróker usa otro nombre (por ejemplo con una letra al final). Escríbalo igual que en la Observación del Mercado, en el grupo Símbolos de los parámetros.</p>');
+  h+=Q('¿Qué pasa cuando se vence la licencia?','<p>El robot deja de abrir operaciones nuevas y solo cuida las abiertas. Renueve con MASFIN antes de la fecha que muestra el panel.</p>');
+  return h+`<p class="note" style="margin-top:12px">¿Otra duda? Escríbale a Master Valencia por WhatsApp.</p></div>`;
+}
+
 function resultado(){
   const x=elegir(), c=R.capital, demo=(x.p==='Ancla'&&c<300);
   window._x=x;
@@ -455,6 +536,7 @@ function resultado(){
   return `<div class="card"><span class="paso">Su diagnóstico</span><h2>${esc(R.nombre)}, esto es lo que se adapta a usted</h2>
   <p class="note">Capital: ${usd(c)} · Meta: ${PQ('meta').o.find(o=>o[0]===R.meta)[1]} · Mercado: ${PQ('activo').o.find(o=>o[0]===R.activo)[1]}</p><p><span class="tag${x.pf==='alto'?' val':''}">Su perfil: ${PERFIL_TXT[x.pf]}</span></p></div>
   ${bloquePort(x.p,c,demo,x.proy)}
+  ${riesgoCard(x,c)}
   ${bloqueSolo(x.s,c)}
   ${horario(x)}
   <div class="dos"><div class="card"><h3>Sus próximos pasos</h3><ul class="pasos">${pasos(x.p,x.proy).map(t=>`<li>${t}</li>`).join('')}</ul></div>
@@ -463,9 +545,11 @@ function resultado(){
   <div class="nav" style="justify-content:flex-start">${['Pulso Noticias','Trazo Técnico'].includes(x.p)?'':`<a class="btn" target="_blank" rel="noopener" href="${calcLink('p',x.p,c)}">Calcular mi portafolio</a>`}<a class="btn sec" target="_blank" rel="noopener" href="${calcLink('e',x.s,c)}">Calcular el robot solo</a></div></div>
   ${pasoCuenta(x.p,x.proy)}
   <div class="card"><span class="tag">Paso 3</span><h3>Envíenos su resultado</h3><p>Le llega directo a Master Valencia por WhatsApp. Con su número de cuenta le preparamos el robot con su licencia personal.</p><div class="nav" style="justify-content:flex-start">${wa}${R.email?`<a class="btn sec" id="mailbtn" href="#">Enviarme el resultado a ${esc(R.email)}</a>`:''}<button class="btn sec" id="copiar">Copiar mi resultado</button><button class="btn sec" id="otra">Hacer el diagnóstico de nuevo</button></div><p class="note" id="copiado"></p>
+  ${faqCard(x)}
   <p class="aviso">Resultados de pruebas sobre datos de 2024 a 2026, no garantizan resultados futuros. "Realista" descuenta la mitad de la ganancia de cada robot. Operar con apalancamiento puede hacer perder el capital. Esto es información educativa, no una asesoría de inversión personalizada.</p></div>`;
 }
 function enganchar(){
+  rgPintar();
   const a=$('#wa'); if(a){ const act=()=>{a.href=`https://wa.me/${WA_NUMERO}?text=${encodeURIComponent(resumen(window._x))}`}; act(); a.onclick=act; a.onmousedown=act; a.ontouchstart=act; ['#cta','#brk'].forEach(s=>{const e=$(s); if(e){e.oninput=act; e.onchange=act;}}); }
   const mb=$('#mailbtn'); if(mb){ const setm=()=>{mb.href=`mailto:${encodeURIComponent(R.email)}?subject=${encodeURIComponent('Mi Diagnóstico MASFIN')}&body=${encodeURIComponent(resumen(window._x))}`}; setm(); mb.onmousedown=setm; mb.ontouchstart=setm; }
   $('#otra').onclick=()=>{paso=0;render()};
