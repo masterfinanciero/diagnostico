@@ -63,6 +63,12 @@ ul.pasos{margin:0;padding-left:20px;display:grid;gap:6px}
 .rgval{font-family:var(--fm);font-size:28px}
 .warn{background:var(--soft2);border-radius:10px;padding:10px 12px;font-size:13.5px}
 .warn.bad{color:var(--bad)}
+.card{min-width:0;max-width:100%;grid-template-columns:minmax(0,1fr)}
+main.in{grid-template-columns:minmax(0,1fr)}
+#app{min-width:0;display:grid;gap:20px;grid-template-columns:minmax(0,1fr)}
+.card>*{min-width:0}
+#cuentacard .tbl,#fondcard .tbl,#rgcard .tbl{overflow-x:auto;max-width:100%}
+#cuentacard table td,#cuentacard table th{padding:6px 5px;vertical-align:top}
 .faq details{border-bottom:1px solid var(--line);padding:10px 0}
 .faq summary{cursor:pointer;font-weight:600;list-style-position:inside}
 .faq details p,.faq details ul{margin:8px 0 0;font-size:14px}
@@ -564,16 +570,20 @@ function diasPort(p){ const o=D.port[p]; if(!o||!o.dia) return []; const out=[];
   for(const v of o.dia){ while(d.getUTCDay()===0||d.getUTCDay()===6) d=new Date(d.getTime()+864e5); out.push([d.toISOString().slice(0,10),v]); d=new Date(d.getTime()+864e5); } return out; }
 const MESC=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 const fCorta=s=>{const d=new Date(s+'T00:00:00Z');return `${d.getUTCDate()} ${MESC[d.getUTCMonth()]} ${d.getUTCFullYear()}`};
-function simCFD(dias,m,S,fases,L,T){
-  const ev=[]; let fase=fases==='inst'?'F':'1', bal=0, ultimo=null, examenes=1, cobrado=0, inicioF=null;
-  const meta={'1':fases==='1'?10:8,'2':5}; const nombre={'1':fases==='1'?'el examen':'la fase 1','2':'la fase 2'};
+function simCFD(dias,m,S,fases,L,T,cfg){
+  cfg=cfg||{}; const metas=cfg.metas||(fases==='1'?[10]:[8,5]), split=cfg.split||0.8, pago=cfg.pago||14, unaVez=cfg.unaVez;
+  const ev=[]; let fase=fases==='inst'?'F':'1', bal=0, ultimo=null, examenes=1, cobrado=0, inicioF=null, pico=0;
+  const nombre={'1':fases==='1'?'el examen':'la fase 1','2':'la fase 2'};
   for(const [d,v0] of dias){ const v=v0*m;
-    if(v<=-L || bal+v<=-T){ ev.push([d,'bad',`Se quema la cuenta (${v<=-L?`pérdida del día ${pct(Math.round(v*10)/10)}`:'pérdida máxima'}). Compra otro examen.`]); fase=fases==='inst'?'F':'1'; bal=0; examenes++; inicioF=fases==='inst'?d:null; continue; }
-    bal+=v;
-    if(fase!=='F' && bal>=meta[fase]){ if(fase==='1'&&fases==='2'){ ev.push([d,'good',`Pasa ${nombre['1']} (+${dec1(bal)}%).`]); fase='2'; }
-      else { ev.push([d,'good',`Pasa ${fase==='2'?nombre['2']:nombre['1']} (+${dec1(bal)}%): <b>cuenta fondeada</b>.`]); fase='F'; inicioF=d; ultimo=d; } bal=0; continue; }
+    const piso=cfg.trailing?Math.min(0,pico)-T:-T;
+    if(v<=-L || bal+v<=piso){ ev.push([d,'bad',`Se quema la cuenta (${v<=-L?`pérdida del día ${pct(Math.round(v*10)/10)}`:'pérdida máxima'}). Compra otro examen.`]); if(unaVez) return {ev,examenes,cobrado,fase:'X',bal,quema:d}; fase=fases==='inst'?'F':'1'; bal=0; pico=0; examenes++; inicioF=fases==='inst'?d:null; continue; }
+    bal+=v; pico=Math.max(pico,bal);
+    if(fase!=='F'){ const meta=metas[+fase-1];
+      if(bal>=meta){ if(fase==='1'&&metas.length>1){ ev.push([d,'good',`Pasa ${nombre['1']} (+${dec1(bal)}%).`]); fase='2'; }
+        else { ev.push([d,'good',`Pasa ${fase==='2'?nombre['2']:nombre['1']} (+${dec1(bal)}%): <b>cuenta fondeada</b>.`]); fase='F'; inicioF=d; ultimo=d; if(unaVez) return {ev,examenes,cobrado,fase,bal,fondeada:d}; }
+        bal=0; pico=0; continue; } }
     if(fase==='F'){ if(!inicioF){inicioF=d;ultimo=d;}
-      if((Date.parse(d)-Date.parse(ultimo))/864e5>=14 && bal>0){ const c=bal/100*S*0.8; cobrado+=c; ev.push([d,'pay',`<b>Cobra ≈ ${usd(c)}</b> (80% de +${dec1(bal)}%).`]); bal=0; ultimo=d; } }
+      if((Date.parse(d)-Date.parse(ultimo))/864e5>=pago && bal>0){ const c=bal/100*S*split; cobrado+=c; ev.push([d,'pay',`<b>Cobra ≈ ${usd(c)}</b> (${Math.round(split*100)}% de +${dec1(bal)}%).`]); bal=0; pico=0; ultimo=d; } }
   }
   return {ev,examenes,cobrado,fase,bal};
 }
@@ -607,8 +617,9 @@ function fondPintar(){
   const axi=x.proy==='axi';
   let r, resumen;
   if(axi){ r=simAxi(dias,m,c); }
-  else { const L=+({3:3,4:4,5:5}[R.c_diaria]||4), T=+({6:6,8:8,10:10}[R.c_total]||8); r=simCFD(dias,m,c,R.c_fases||'2',L,T);
-    resumen=`Exámenes comprados: <b>${r.examenes}</b> · Cobrado en total: <b>${usd(r.cobrado)}</b> · Hoy estaría en: <b>${r.fase==='F'?'cuenta fondeada':(r.fase==='2'?'fase 2':'fase 1')}</b>.`; }
+  else { const K=window._cuenta, L=K?K.F.L:+({3:3,4:4,5:5}[R.c_diaria]||4), T=K?K.F.T:+({6:6,8:8,10:10}[R.c_total]||8), S=K?K.s:c;
+    r=K?simCFD(dias,m,S,K.F.fases,L,T,{metas:K.F.metas,trailing:K.F.trailing,split:K.F.split,pago:K.F.pago}):simCFD(dias,m,c,R.c_fases||'2',L,T);
+    resumen=`${window._cuenta?`Con la cuenta recomendada (<b>${window._cuenta.F.f} ${window._cuenta.F.prog} de ${usd(window._cuenta.s)}</b>). `:''}Exámenes comprados: <b>${r.examenes}</b> · Cobrado en total: <b>${usd(r.cobrado)}</b> · Hoy estaría en: <b>${r.fase==='F'?'cuenta fondeada':(r.fase==='2'?'fase 2':'fase 1')}</b>.`; }
   const evd={}; r.ev.forEach(([d,k,tx])=>{ (evd[d]=evd[d]||[]).push([k,tx]); });
   const col=k=>k==='bad'?'var(--bad)':(k==='pay'?'var(--acc)':'var(--good)');
   const agrupa=(clave,lab)=>{ const G={}; for(const [d,v] of dias){ const k=clave(d); G[k]=G[k]||{v:1,ev:[],d0:d}; G[k].v*=1+v*m/100; (evd[d]||[]).forEach(e=>G[k].ev.push(e)); }
@@ -623,6 +634,48 @@ function fondPintar(){
 document.addEventListener('click',e=>{ const b=e.target.closest&&e.target.closest('#fondini button'); if(!b) return; _fondIni=b.dataset.ini; document.querySelectorAll('#fondini button').forEach(x=>x.classList.toggle('sec',x!==b)); fondPintar(); });
 document.addEventListener('input',e=>{ if(e.target&&e.target.id==='rg') fondPintar(); });
 
+// ---------- Qué cuenta de fondeo comprar con su presupuesto ----------
+const FIRMAS=[
+ {f:'FundingPips',prog:'2 Step Standard',fases:'2',metas:[8,5],L:5,T:10,split:.8,pago:14,mon:'$',precios:{5000:34,10000:63,25000:168,50000:285,100000:522},nota:'Cobro semanal, cada 2 semanas (80%) o mensual. En la cuenta fondeada no cuentan las ganancias de operaciones 5 min antes o después de noticias fuertes.'},
+ {f:'FTMO',prog:'2-Step',fases:'2',metas:[10,5],L:5,T:10,split:.8,pago:14,mon:'€',precios:{10000:89,25000:250,50000:345,100000:540,200000:1080},nota:'La tarifa se la devuelven con el primer cobro.'},
+ {f:'FundingPips',prog:'1 Step Flex',fases:'1',metas:[12],L:3,T:12,split:.85,pago:14,mon:'$',precios:{5000:66,10000:99,25000:211,50000:313,100000:533},nota:'Una sola fase, meta 12%, pérdida diaria 3%.'},
+ {f:'FTMO',prog:'1-Step',fases:'1',metas:[10],L:3,T:10,trailing:true,split:.9,pago:14,mon:'€',precios:{10000:79,25000:199,50000:319,100000:499,200000:999},nota:'Pérdida máxima que sube con la cuenta (al cierre del día).'},
+ {f:'FundingPips',prog:'Zero (instantánea)',fases:'inst',metas:[],L:3,T:5,trailing:true,split:.95,pago:14,mon:'$',precios:{5000:60,10000:88,25000:188,50000:244,100000:444},nota:'Sin examen. Prohíbe operar 10 min antes y después de noticias fuertes: use la regla de noticias con 10 minutos.'}];
+const EUR_USD=1.1;
+function evalFirma(F,dias,m){
+  if(F.fases==='inst'){ let vive=0,tot=0; for(let k=0;k+130<dias.length;k+=5){ const r=simCFD(dias.slice(k,k+130),m,10000,'inst',F.L,F.T,{trailing:F.trailing,unaVez:true}); tot++; if(!r.quema) vive++; } return {p:tot?vive/tot:0,sem:0,n:tot}; }
+  let ok=0,mal=0,sem=[];
+  for(let k=0;k<dias.length;k+=5){ const r=simCFD(dias.slice(k),m,10000,F.fases,F.L,F.T,{metas:F.metas,trailing:F.trailing,unaVez:true});
+    if(r.fondeada){ok++; sem.push((Date.parse(r.fondeada)-Date.parse(dias[k][0]))/(7*864e5));} else if(r.quema) mal++; }
+  sem.sort((a,b)=>a-b); return {p:ok+mal?ok/(ok+mal):0, sem:sem.length?sem[Math.floor(sem.length/2)]:null, n:ok+mal};
+}
+function cuentaCard(x,c){
+  if(R.meta!=='cfd'||!D.port[x.p]) return '';
+  return `<div class="card" id="cuentacard"><span class="tag">Qué cuenta comprar</span><h2>La cuenta de fondeo que le cabe en su presupuesto</h2><div id="cuentaout"></div></div>`;
+}
+function cuentaPintar(){
+  const el=$('#cuentaout'); if(!el) return; const x=window._x, p=x.p, B=R.capital>0?R.capital:0;
+  const m=($('#rg')?+$('#rg').value:(window._rg||{rec:1}).rec), dias=diasPort(p), o=D.port[p].r;
+  let L=FIRMAS.filter(F=>!R.c_fases||R.c_fases==='nose'||F.fases===R.c_fases);
+  const filas=[]; let mejor=null;
+  for(const F of L){ const ev=evalFirma(F,dias,m), n=Math.max(2,ev.p>=1?1:(ev.p>0?Math.ceil(Math.log(.05)/Math.log(1-ev.p)):99));   // mínimo 2 intentos por prudencia
+    const tam=Object.keys(F.precios).map(Number).sort((a,b)=>a-b);
+    let elegido=null; for(const s of tam){ const pr=F.precios[s]*(F.mon==='€'?EUR_USD:1); if(pr*n<=B) elegido=s; }
+    const s=elegido||tam[0], pr=F.precios[s], prU=pr*(F.mon==='€'?EUR_USD:1), mes=s*o.anual*m/12/100*F.split;
+    const fila={F,s,pr,prU,n,ev,mes,cabe:!!elegido}; filas.push(fila);
+    if(fila.cabe && (!mejor || fila.mes/ (fila.n*fila.prU) > mejor.mes/(mejor.n*mejor.prU)*1.15 || fila.mes>mejor.mes*1.3)) mejor=fila; }
+  const precio=f=>`${f.F.mon}${Math.round(f.pr).toLocaleString('es-CO')}`, res=f=>`${f.F.mon}${Math.round(f.pr*f.n).toLocaleString('es-CO')}`;
+  let h='';
+  if(mejor) h+=`<div class="warn"><b>Le recomendamos: ${mejor.F.f} ${mejor.F.prog} de ${usd(mejor.s)}</b> (${precio(mejor)} por examen). Con su presupuesto de ${usd(B)} alcanza para ${mejor.n} ${mejor.n===1?'intento':'intentos'}, para tener 95% de probabilidad de quedar fondeado (mínimo 2 intentos por prudencia: en vivo siempre se gana menos que en las pruebas). Ya fondeado, cobraría unos <b>${usd(mejor.mes)} al mes</b> en el escenario realista.</div>`;
+  else h+=`<div class="warn bad">Con ${usd(B)} todavía no alcanza para la reserva de intentos de ninguna cuenta. Empiece por la más pequeña de la tabla (un intento a la vez) o junte para la reserva completa; mientras tanto, pruebe el portafolio en demo.</div>`;
+  h+=`<div class="tbl" style="margin-top:10px"><table style="width:100%;font-size:13px"><thead><tr><th style="text-align:left">Cuenta</th><th>Tamaño</th><th>Precio</th><th>Pasa*</th><th>Semanas típicas</th><th>Reserva 95%</th><th>Cobro al mes</th></tr></thead><tbody>${filas.map(f=>`<tr${f===mejor?' style="background:var(--soft)"':''}><td style="text-align:left"><b>${f.F.f}</b><br><small>${f.F.prog} · meta ${f.F.metas.length?f.F.metas.join('% y ')+'%':'sin examen'} · diaria ${f.F.L}% · total ${f.F.T}%</small></td><td>${usd(f.s)}${f.cabe?'':'<br><small style="color:var(--bad)">no alcanza</small>'}</td><td>${precio(f)}</td><td>${Math.round(f.ev.p*100)}%</td><td>${f.ev.sem==null?'—':(f.F.fases==='inst'?'0':'~'+Math.max(1,Math.round(f.ev.sem)))}</td><td>${res(f)}<br><small>${f.n} ${f.n===1?'intento':'intentos'}</small></td><td>${usd(f.mes)}</td></tr>`).join('')}</tbody></table></div>`;
+  h+=`<p class="note" style="margin-top:8px">${filas.map(f=>`<b>${f.F.f} ${f.F.prog}:</b> ${f.F.nota}`).join(' ')} *Pasa: probabilidad de quedar fondeado (en la instantánea: de no quemar la cuenta en 6 meses). Probabilidad y semanas: arrancando cada semana de 2024 a 2026 con el ${PORT_INFO[p]?PORT_INFO[p].t:p} al riesgo de la barra. Compre un examen a la vez; la reserva es lo que debe tener guardado por si toca repetir. Precios públicos de FundingPips (sept. 2026) y FTMO (ago. 2026, en euros; FTMO devuelve la tarifa con el primer cobro): confírmelos antes de comprar. Recomendamos firmas que permiten robots: confírmelo con la firma.</p>`;
+  const conNoti=D.port[p].cols.some(k=>/Expl|Kair|Rebote/.test(k));
+  if(conNoti) h+=`<div class="warn bad" style="margin-top:8px"><b>Ojo con las noticias en la cuenta fondeada:</b> este portafolio tiene robots de noticias. FundingPips no le paga las ganancias de operaciones 5 minutos antes o después de noticias fuertes, y la cuenta fondeada normal de FTMO tampoco deja operar justo en la noticia (su cuenta "Swing" sí). Para el examen sirve tal cual; ya fondeado, pase al portafolio <b>Peldaño sin noticias</b> (asesor Trazo Técnico con la regla de noticias) o use la cuenta Swing. Confírmelo con la firma.</div>`;
+  el.innerHTML=h; window._cuenta=mejor||filas[0]||null; fondPintar();
+}
+document.addEventListener('input',e=>{ if(e.target&&e.target.id==='rg') cuentaPintar(); });
+
 function resultado(){
   const x=elegir(), c=R.capital, demo=(x.p==='Ancla'&&c<300);
   window._x=x;
@@ -631,6 +684,7 @@ function resultado(){
   <p class="note">Capital: ${usd(c)} · Meta: ${PQ('meta').o.find(o=>o[0]===R.meta)[1]} · Mercado: ${PQ('activo').o.find(o=>o[0]===R.activo)[1]}</p><p><span class="tag${x.pf==='alto'?' val':''}">Su perfil: ${PERFIL_TXT[x.pf]}</span></p></div>
   ${bloquePort(x.p,c,demo,x.proy)}
   ${riesgoCard(x,c)}
+  ${cuentaCard(x,c)}
   ${fondeoCard(x,c)}
   <div id="vivocard"></div>
   ${bloqueSolo(x.s,c)}
@@ -645,7 +699,7 @@ function resultado(){
   <p class="aviso">Resultados de pruebas sobre datos de 2024 a 2026, no garantizan resultados futuros. "Realista" descuenta la mitad de la ganancia de cada robot. Operar con apalancamiento puede hacer perder el capital. Esto es información educativa, no una asesoría de inversión personalizada.</p></div>`;
 }
 function enganchar(){
-  rgPintar(); fondPintar();
+  rgPintar(); cuentaPintar(); fondPintar();
   vivoListo.then(()=>pintarVivo(window._x,R.capital));
   const a=$('#wa'); if(a){ const act=()=>{a.href=`https://wa.me/${WA_NUMERO}?text=${encodeURIComponent(resumen(window._x))}`}; act(); a.onclick=act; a.onmousedown=act; a.ontouchstart=act; ['#cta','#brk'].forEach(s=>{const e=$(s); if(e){e.oninput=act; e.onchange=act;}}); }
   const mb=$('#mailbtn'); if(mb){ const setm=()=>{mb.href=`mailto:${encodeURIComponent(R.email)}?subject=${encodeURIComponent('Mi Diagnóstico MASFIN')}&body=${encodeURIComponent(resumen(window._x))}`}; setm(); mb.onmousedown=setm; mb.ontouchstart=setm; }
