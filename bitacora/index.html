@@ -56,6 +56,7 @@ td.num,th.num{text-align:right;font-family:var(--fm)}
 .verdict{border-radius:12px;padding:14px 16px;border:1.5px solid var(--acc);background:var(--soft);display:grid;gap:4px}
 .verdict.w{border-color:var(--warn);background:var(--soft2)}
 svg.eq{width:100%;height:auto;display:block}
+.bar{height:12px;border-radius:99px;background:var(--bg);border:1px solid var(--line);overflow:hidden}.bar i{display:block;height:100%;background:var(--acc)}
 .empty{color:var(--mute);font-size:14px;text-align:center;padding:16px}
 </style>
 
@@ -64,6 +65,7 @@ svg.eq{width:100%;height:auto;display:block}
 <main class="in">
 
 <section id="t-hoy" style="display:grid;gap:16px">
+ <div class="card" id="meta"></div>
  <div class="card" id="cfgAviso" hidden><h2>Antes de empezar</h2><p class="note">Ponga su capital y su riesgo por noticia en <b>Ajustes</b> (una sola vez). Con eso la bitácora calcula R, drawdown y esperanza.</p><button class="btn" onclick="ir('cfg')">Ir a Ajustes</button></div>
  <div class="card">
   <h2>Paso 1 · Pegue el calendario de hoy</h2>
@@ -99,11 +101,12 @@ svg.eq{width:100%;height:auto;display:block}
 <section id="t-cfg" hidden style="display:grid;gap:16px">
  <div class="card"><h2>Ajustes (una sola vez)</h2>
   <div class="grid2">
-   <label class="f">Su nombre<input id="cNom" placeholder="Ej. Juan"></label>
+   <label class="f">Su nombre completo<input id="cNom" placeholder="Ej. Juan Pérez"></label>
    <label class="f">Capital inicial (USD)<input id="cCap" type="number" min="0" step="any" placeholder="1000"></label>
    <label class="f">Riesgo por noticia (% del capital)<input id="cRie" type="number" min="0" step="0.1" value="1"></label>
    <label class="f">Hora de su calendario por defecto<select id="cTz"><option value="COL">Colombia (GMT−5)</option><option value="NY">Nueva York</option><option value="GMT">GMT / UTC</option><option value="SRV">Servidor GMT+2/+3</option></select></label>
   </div>
+  <label class="row" id="compBox" style="font-size:14px;gap:8px"><input type="checkbox" id="cComp" style="width:auto" checked> Compartir mi bitácora con mi mentor MASFIN (ve mis operaciones y mis números para darme el aval)</label>
   <p class="note">1R = capital inicial × riesgo. Con $1.000 y 1%, 1R = $10: una pérdida de $10 es −1R.</p>
   <div class="row"><button class="btn" id="guardar">Guardar</button><span class="note" id="guardado"></span></div>
  </div>
@@ -119,7 +122,16 @@ svg.eq{width:100%;height:auto;display:block}
 const LS='bitacora_kairos_masfin_v1';
 let S={cfg:{nom:'',cap:0,rie:1,tz:'COL'},dias:{},ops:[]};
 try{const r=localStorage.getItem(LS);if(r){const o=JSON.parse(r);S=Object.assign(S,o);S.cfg=Object.assign({nom:'',cap:0,rie:1,tz:'COL'},o.cfg||{});}}catch(e){}
-function save(){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}}
+const SYNC='__SYNC__'.startsWith('http')?'__SYNC__':'';
+function save(){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}enviar();}
+let tEnv=null;
+function enviar(){if(!SYNC||S.cfg.comp===false||!S.cfg.nom)return;clearTimeout(tEnv);tEnv=setTimeout(()=>{try{
+ if(!S.cfg.id){S.cfg.id='A'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}}
+ const o=orden(),T=stats(o),E=etapa(T);
+ const res={n:T.n,etapa:E.et,win:+T.win.toFixed(1),pf:isFinite(T.pf)?+T.pf.toFixed(2):99,neto:+T.neto.toFixed(2),pct:+T.pct.toFixed(2),ddp:+T.ddp.toFixed(2),disc:+T.disc.toFixed(0),esp:+T.esp.toFixed(2),ok:E.ok};
+ const body=JSON.stringify({id:S.cfg.id,nombre:S.cfg.nom,cap:S.cfg.cap,rie:S.cfg.rie,res,ops:o.map(x=>[x.fecha,x.hora||'',x.dir,x.siguio?1:0,x.ent,x.res,(x.not||'').slice(0,40)])});
+ fetch(SYNC,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body}).catch(()=>{});
+}catch(e){}},1500);}
 const $=id=>document.getElementById(id);
 const fm=(x,d=2)=>(x<0?'−':'')+'$'+Math.abs(x).toLocaleString('es-CO',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fn=(x,d=2)=>(isFinite(x)?(x<0?'−':'')+Math.abs(x).toLocaleString('es-CO',{minimumFractionDigits:d,maximumFractionDigits:d}):'—');
@@ -192,7 +204,10 @@ function senales(evs){
  return res.sort((x,y)=>x.min-y.min);}
 
 const CH={VENDER:['c-v','VENDER ORO'],COMPRAR:['c-c','COMPRAR ORO'],NO:['c-n','NO ENTRAR'],ESPERA:['c-n','esperando dato']};
+function pintaMeta(){const T=stats(orden()),E=etapa(T),p=Math.min(100,T.n/META*100);
+ $('meta').innerHTML=`<div class="row" style="justify-content:space-between"><h2>Meta para el aval: ${T.n} / ${META} noticias</h2><span class="chip ${E.ok?'c-c':'c-n'}">${E.et.split(' · ')[0]}</span></div><div class="bar"><i style="width:${p}%"></i></div><p class="note">${E.msg}</p>${SYNC?`<p class="note">${S.cfg.comp!==false?'🔗 Su mentor ve esta bitácora en vivo.':'Compartir con el mentor está apagado (Ajustes).'}</p>`:''}`;}
 function pintaHoy(){
+ pintaMeta();
  const f=$('fecha').value,D=S.dias[f];const box=$('lista');
  $('cfgAviso').hidden=R1()>0;
  const opsDia=S.ops.filter(o=>o.fecha===f);
@@ -235,6 +250,13 @@ function stats(ops){
  const aw=w.length?gw/w.length:0,al=l.length?gl/l.length:0,rr=al>0?aw/al:0;
  return {n,win:n?w.length/n*100:0,pf:gl>0?gw/gl:(gw>0?Infinity:0),neto,aw,al,rr,esp:n?neto/n:0,espR:n&&r1?neto/n/r1:0,dd,ddp,cur,curp:pk>0?cur/pk*100:0,rmax,curva,be:rr>0?100/(1+rr):0,
   disc:n?ops.filter(o=>o.siguio).length/n*100:0,sig:ops.filter(o=>o.siguio).reduce((a,o)=>a+o.res,0),nosig:ops.filter(o=>!o.siguio).reduce((a,o)=>a+o.res,0),nNo:ops.filter(o=>!o.siguio).length,pct:S.cfg.cap?neto/S.cfg.cap*100:0};}
+const META=100;
+function etapa(T){
+ const f2=[];if(T.pf<1.2)f2.push(`factor de beneficio de 1,2 o más (lleva ${isFinite(T.pf)?fn(T.pf):'∞'})`);if(T.ddp>10)f2.push(`caída máxima menor a 10% (lleva ${fn(T.ddp,1)}%)`);if(T.disc<90)f2.push(`seguir la señal en 9 de cada 10 noticias (lleva ${fn(T.disc,0)}%)`);if(T.esp<=0)f2.push('esperanza positiva');
+ if(T.n<30)return {et:`Etapa 1 · Aprendiz · ${T.n}/${META} noticias`,msg:`Su mentor exige ${META} noticias operadas y registradas antes de dar el aval para cuenta real. Con menos de 30 los números todavía no dicen nada: registre cada noticia, gane o pierda.`,ok:false};
+ if(T.n<META)return {et:`Etapa 2 · Entrenamiento · ${T.n}/${META} noticias`,msg:`Le faltan ${META-T.n} noticias para pedir el aval.`+(f2.length?' Además vaya trabajando en: '+f2.join(' · ')+'.':' Por ahora sus números van bien: mantenga la disciplina.'),ok:false};
+ if(f2.length)return {et:`Etapa 3 · ${META} noticias cumplidas · falta calidad`,msg:'Ya tiene las '+META+' noticias, pero para el aval le falta: '+f2.join(' · ')+'. Siga operando en demo hasta cumplirlo.',ok:false};
+ return {et:'Etapa 4 · Lista para el aval del mentor',msg:`${T.n} noticias, factor de beneficio ${fn(T.pf)}, caída máxima ${fn(T.ddp,1)}%, disciplina ${fn(T.disc,0)}% y esperanza ${fm(T.esp)} por noticia. Pídale a su mentor el aval para abrir la cuenta real.`,ok:true};}
 const lunes=f=>{const d=new Date(f+'T12:00:00');const k=(d.getDay()+6)%7;d.setDate(d.getDate()-k);return d.toISOString().slice(0,10);};
 let PER='todo';
 document.querySelectorAll('#per button').forEach(b=>b.onclick=()=>{PER=b.dataset.p;document.querySelectorAll('#per button').forEach(x=>x.classList.toggle('on',x===b));pintaEst();});
@@ -251,10 +273,7 @@ function pintaEst(){
  const s=stats(ops),T=stats(all);
  if(!all.length){$('kpis').innerHTML='';$('verd').innerHTML='<div class="empty">Registre su primera operación en la pestaña <b>Hoy</b>.</div>';$('curva').innerHTML='';['ense','tSem','tMes','tHora'].forEach(i=>$(i).innerHTML='');return;}
  // etapa de entrenamiento (siempre con todas las operaciones)
- let et,msg,cl='w';
- if(T.n<20){et='Etapa 1 · Aprendiz';msg=`Lleva ${T.n} operaciones. Con menos de 20 los números todavía no dicen nada: siga registrando cada noticia, gane o pierda.`;}
- else if(T.n<50||T.pf<1.2||T.ddp>10||T.disc<90){et='Etapa 2 · En prueba';const f2=[];if(T.n<50)f2.push(`llegar a 50 operaciones (lleva ${T.n})`);if(T.pf<1.2)f2.push(`factor de beneficio de 1,2 o más (lleva ${isFinite(T.pf)?fn(T.pf):'∞'})`);if(T.ddp>10)f2.push(`caída máxima menor a 10% (lleva ${fn(T.ddp,1)}%)`);if(T.disc<90)f2.push(`seguir la señal en 9 de cada 10 (lleva ${fn(T.disc,0)}%)`);msg='Le falta: '+f2.join(' · ')+'.';}
- else{et='Etapa 3 · Lista para cuenta real o fondeo';msg=`${T.n} operaciones, factor de beneficio ${fn(T.pf)}, caída máxima ${fn(T.ddp,1)}% y disciplina ${fn(T.disc,0)}%. Hable con su mentor para pasar a la siguiente cuenta.`;cl='';}
+ const E0=etapa(T),et=E0.et,msg=E0.msg,cl=E0.ok?'':'w';
  $('verd').innerHTML=`<div class="verdict ${cl}"><b>${et}</b><span class="note" style="color:inherit">${msg}</span></div>`;
  const K=[['Operaciones',s.n],['Neto',`<span class="${s.neto>=0?'good':'bad'}">${fm(s.neto)}</span>`],['Rentabilidad',`${fn(s.pct,1)}%`],['Ganadas (win rate)',`${fn(s.win,0)}%`],['Factor de beneficio',isFinite(s.pf)?fn(s.pf):'∞'],['Esperanza por operación',`${fm(s.esp)}${R1()?' · '+fn(s.espR)+'R':''}`],
   ['Ganancia media',fm(s.aw)],['Pérdida media',fm(-s.al)],['Relación riesgo:beneficio',s.rr?'1 : '+fn(s.rr):'—'],['Caída máxima',`${fm(-s.dd)} · ${fn(s.ddp,1)}%`],['Caída actual',`${fm(-s.cur)} · ${fn(s.curp,1)}%`],['Peor racha',s.rmax+' pérdidas'],['Disciplina',`${fn(s.disc,0)}%`]];
@@ -282,15 +301,15 @@ function pintaReg(){const o=orden().reverse();$('nOps').textContent=o.length+' o
  $('tOps').querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{S.ops=S.ops.filter(o=>o.id!=b.dataset.d);save();pintaReg();});}
 
 // ---------- ajustes y copias
-function cargaCfg(){$('cNom').value=S.cfg.nom||'';$('cCap').value=S.cfg.cap||'';$('cRie').value=S.cfg.rie||1;$('cTz').value=S.cfg.tz||'COL';}
+function cargaCfg(){$('compBox').hidden=!SYNC;$('cComp').checked=S.cfg.comp!==false;$('cNom').value=S.cfg.nom||'';$('cCap').value=S.cfg.cap||'';$('cRie').value=S.cfg.rie||1;$('cTz').value=S.cfg.tz||'COL';}
 cargaCfg();
-$('guardar').onclick=()=>{S.cfg={nom:$('cNom').value.trim(),cap:parseFloat($('cCap').value)||0,rie:parseFloat($('cRie').value)||1,tz:$('cTz').value};$('tz').value=S.cfg.tz;save();$('guardado').textContent='Guardado. 1R = '+fm(R1());pintaHoy();};
+$('guardar').onclick=()=>{S.cfg={id:S.cfg.id,comp:$('cComp').checked,nom:$('cNom').value.trim(),cap:parseFloat($('cCap').value)||0,rie:parseFloat($('cRie').value)||1,tz:$('cTz').value};$('tz').value=S.cfg.tz;save();$('guardado').textContent='Guardado. 1R = '+fm(R1());pintaHoy();};
 function bajar(nombre,txt,tipo){const b=new Blob([txt],{type:tipo});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nombre;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
 $('bajarJ').onclick=()=>bajar('bitacora_kairos_'+hoy()+'.json',JSON.stringify(S),'application/json');
 $('bajarC').onclick=()=>bajar('bitacora_kairos_'+hoy()+'.csv','﻿fecha;hora_NY;noticia;direccion;siguio_senal;entradas;resultado_usd\n'+orden().map(o=>[o.fecha,o.hora||'',(o.not||'').replace(/;/g,','),o.dir==='C'?'compra':'venta',o.siguio?'si':'no',o.ent,String(o.res).replace('.',',')].join(';')).join('\n'),'text/csv');
 $('subir').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const o=JSON.parse(r.result);if(!o.ops)throw 0;S=o;S.cfg=Object.assign({nom:'',cap:0,rie:1,tz:'COL'},o.cfg||{});save();cargaCfg();pintaHoy();$('guardado').textContent='Copia cargada: '+S.ops.length+' operaciones.';}catch(x){$('guardado').textContent='Ese archivo no es una copia de la bitácora.';}};r.readAsText(f);};
 let borrarPaso=0;$('borrar').onclick=()=>{if(!borrarPaso){borrarPaso=1;$('borrarMsg').textContent='¿Seguro? Toque otra vez para borrar todo (descargue una copia antes).';setTimeout(()=>{borrarPaso=0;$('borrarMsg').textContent='';},6000);return;}S={cfg:S.cfg,dias:{},ops:[]};save();borrarPaso=0;$('borrarMsg').textContent='Bitácora borrada.';pintaHoy();};
-pintaHoy();
+pintaHoy();enviar();
 })();
 </script>
 
