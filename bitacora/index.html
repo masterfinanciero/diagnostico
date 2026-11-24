@@ -128,7 +128,7 @@ svg.eq{width:100%;height:auto;display:block}
 const LS='bitacora_kairos_masfin_v1';
 let S={cfg:{nom:'',cap:0,rie:1,tz:'COL'},dias:{},ops:[]};
 try{const r=localStorage.getItem(LS);if(r){const o=JSON.parse(r);S=Object.assign(S,o);S.cfg=Object.assign({nom:'',cap:0,rie:1,tz:'COL'},o.cfg||{});}}catch(e){}
-const SYNC='__SYNC__'.startsWith('http')?'__SYNC__':'';
+const SYNC='https://script.google.com/macros/s/AKfycbyEDuwhSFjfIcUfB_C8ohwyr9AXFr8ZzLwJ69ivBogwKOpQXTr2g_3anv14Q7XAAoU/exec'.startsWith('http')?'https://script.google.com/macros/s/AKfycbyEDuwhSFjfIcUfB_C8ohwyr9AXFr8ZzLwJ69ivBogwKOpQXTr2g_3anv14Q7XAAoU/exec':'';
 function saveLocal(){try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){}}
 function save(){saveLocal();enviar();}
 let tEnv=null;

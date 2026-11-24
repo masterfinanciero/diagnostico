@@ -56,7 +56,7 @@ const $=id=>document.getElementById(id);
 const fm=(x,d=2)=>(x<0?'−':'')+'$'+Math.abs(x).toLocaleString('es-CO',{minimumFractionDigits:d,maximumFractionDigits:d});
 const fn=(x,d=2)=>(isFinite(x)?(x<0?'−':'')+Math.abs(x).toLocaleString('es-CO',{minimumFractionDigits:d,maximumFractionDigits:d}):'—');
 let cfg={};try{cfg=JSON.parse(localStorage.getItem('panel_mentor_masfin')||'{}');}catch(e){}
-$('url').value=cfg.url||'';
+$('url').value=cfg.url||'https://script.google.com/macros/s/AKfycbyEDuwhSFjfIcUfB_C8ohwyr9AXFr8ZzLwJ69ivBogwKOpQXTr2g_3anv14Q7XAAoU/exec';
 let A=[];
 function st(ops,cap){let eq=cap||0,pk=eq,dd=0,ddp=0;const c=[eq];let gw=0,gl=0,w=0;ops.forEach(o=>{const r=+o[5];eq+=r;c.push(eq);if(eq>pk)pk=eq;if(pk-eq>dd){dd=pk-eq;ddp=pk>0?dd/pk*100:0;}if(r>0){gw+=r;w++;}else gl-=r;});
  const n=ops.length,l=ops.filter(o=>+o[5]<0).length;return {n,win:n?w/n*100:0,pf:gl>0?gw/gl:(gw>0?Infinity:0),neto:gw-gl,dd,ddp,c,aw:w?gw/w:0,al:l?gl/l:0,disc:n?ops.filter(o=>o[3]).length/n*100:0};}
